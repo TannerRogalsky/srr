@@ -1,3 +1,5 @@
+use nom::Parser as _;
+
 #[derive(Debug)]
 pub struct Block {
     pub header: BlockHeader,
@@ -110,9 +112,43 @@ pub struct BlockHeader {
     pub add_size: u32,
 }
 
+fn take1(i: &[u8]) -> nom::IResult<&[u8], u8> {
+    match i.split_first() {
+        Some((v, i)) => Ok((i, *v)),
+        None => Err(nom::Err::Incomplete(nom::Needed::new(1))),
+    }
+}
+
 impl BlockHeader {
     pub fn full_size(&self) -> usize {
         self.size as usize + self.add_size as usize
+    }
+
+    pub fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
+        let (rest, crc) = nom::number::le_u16().parse(input)?;
+        let (rest, ty) = take1(rest)
+            .map(|(rest, b)| (rest, BlockType::try_from(b).unwrap_or(BlockType::Unknown)))?;
+        let (rest, flags) = nom::number::le_u16().parse(rest)?;
+        let (rest, size) = nom::number::le_u16().parse(rest)?;
+
+        let (rest, add_size) = if (flags & 0x8000) > 0
+            || matches!(ty, BlockType::RarPackedFile | BlockType::RarNewSub)
+        {
+            nom::number::le_u32().parse(rest)?
+        } else {
+            (rest, 0)
+        };
+
+        Ok((
+            rest,
+            BlockHeader {
+                crc,
+                ty,
+                flags,
+                size,
+                add_size,
+            },
+        ))
     }
 }
 
