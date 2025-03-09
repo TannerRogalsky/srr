@@ -30,6 +30,12 @@ pub struct Client {
     download_url: reqwest::Url,
 }
 
+impl Default for Client {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Client {
     pub fn new() -> Self {
         let inner = reqwest::Client::new();
@@ -106,7 +112,7 @@ pub struct DetailsResponse {
 impl DetailsResponse {
     pub fn file_request(&self, name: &str) -> Option<FileRequest> {
         self.files.iter().find_map(|details| {
-            (&details.name == name).then_some(FileRequest {
+            (details.name == name).then_some(FileRequest {
                 base: &self.name,
                 details,
             })

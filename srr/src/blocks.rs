@@ -26,7 +26,6 @@ pub enum BlockImpl {
 
 #[derive(Debug)]
 pub struct RarOldRecovery {
-    pub packed_size: u32,
     pub rar_version: u8,
     pub recovery_sector: u16,
     pub data_sectors: u32,
@@ -34,14 +33,13 @@ pub struct RarOldRecovery {
 
 impl RarOldRecovery {
     pub fn parse(input: &[u8]) -> nom::IResult<&[u8], Self> {
-        let (rest, packed_size) = nom::number::le_u32().parse(input)?;
-        let (rest, rar_version) = take1(rest)?;
+        let (rest, rar_version) = take1(input)?;
         let (rest, recovery_sector) = nom::number::le_u16().parse(rest)?;
         let (rest, data_sectors) = nom::number::le_u32().parse(rest)?;
+        let (rest, _tag) = nom::bytes::tag(&b"Protect!"[..]).parse(rest)?;
         Ok((
             rest,
             Self {
-                packed_size,
                 rar_version,
                 recovery_sector,
                 data_sectors,
@@ -101,7 +99,7 @@ impl DateTime {
         let day = stamp & 0x1F;
         let stamp = stamp >> 5;
         let month = stamp & 0x0F;
-        let year = (stamp >> 4) & 0x7F + 1980;
+        let year = ((stamp >> 4) & 0x7F) + 1980;
         Self {
             year: year as u16,
             month: month as u16,
@@ -246,16 +244,10 @@ impl RarPackedFile {
                 (rest, 0)
             };
 
-            // println!("{:0>2X?}", &rest[..3]);
-            // println!("{}", rest.len());
-            let (rest, _modification_time) = parse_xtime(flags >> 3 * 4, rest, Some(datetime))?;
-            // println!("{}", rest.len());
-            let (rest, _creation_time) = parse_xtime(flags >> 2 * 4, rest, None)?;
-            // println!("{}", rest.len());
-            let (rest, _last_access_time) = parse_xtime(flags >> 1 * 4, rest, None)?;
-            // println!("{}", rest.len());
-            let (rest, _archival_time) = parse_xtime(flags >> 0 * 4, rest, None)?;
-            // println!("{}", rest.len());
+            let (rest, _modification_time) = parse_xtime(flags >> 12, rest, Some(datetime))?;
+            let (rest, _creation_time) = parse_xtime(flags >> 8, rest, None)?;
+            let (rest, _last_access_time) = parse_xtime(flags >> 4, rest, None)?;
+            let (rest, _archival_time) = parse_xtime(flags, rest, None)?;
             (rest, 0)
         } else {
             (rest, 0)

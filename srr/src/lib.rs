@@ -141,7 +141,6 @@ impl Srr {
                     });
                 }
                 BlockType::RarOldRecovery => {
-                    // untested
                     offset += consumed;
                     let (rest, block) = RarOldRecovery::parse(&input[offset..])?;
                     offset += input[offset..].len() - rest.len();
@@ -150,7 +149,24 @@ impl Srr {
                         inner: Some(BlockImpl::RarOldRecovery(block)),
                     });
                 }
-                BlockType::RarNewSub => todo!(),
+                BlockType::RarNewSub => {
+                    offset += consumed;
+                    let size = header.size as usize - consumed;
+                    let (_rest, block) = RarPackedFile::parse(&input[offset..], &header)?;
+                    offset += size;
+                    if block.file_name == "RR" {
+                        offset -= 8 + 4 + 8;
+                        let (rest, (_tag, _recovery_sectors, _data_sectors)) = (
+                            nom::bytes::tag(&b"Protect+"[..]),
+                            nom::number::le_u32(),
+                            nom::number::le_u64(),
+                        )
+                            .parse(&input[offset..])?;
+                        offset += input[offset..].len() - rest.len();
+                    } else if block.file_name == "CMT" {
+                        offset += 8 + 4 + 8 + 4;
+                    }
+                }
                 BlockType::SrrHeader => {
                     offset += header.full_size();
                     blocks.push(Block {
